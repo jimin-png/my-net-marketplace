@@ -1,11 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+export const runtime = "nodejs";
 
-export const runtime = "nodejs"; // 🔥 Vercel에서 FormData 처리 가능하게 만드는 핵심
+import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
-
     const file = formData.get("file") as File;
 
     if (!file) {
@@ -20,29 +19,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "환경변수 PINATA_JWT 없음" }, { status: 500 });
     }
 
-    // 📌 Pinata 업로드
     const uploadRes = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
       method: "POST",
       headers: {
-        Authorization: pinataJwt,
+        Authorization: `Bearer ${pinataJwt}`,
       },
-      body: (() => {
-        const form = new FormData();
-        form.append("file", new Blob([buffer]), file.name);
-        return form;
-      })(),
+      body: buffer,
     });
 
-    const result = await uploadRes.json();
+    const uploadJson = await uploadRes.json();
 
-    if (!uploadRes.ok) {
-      return NextResponse.json({ error: result }, { status: 500 });
-    }
+    return NextResponse.json(uploadJson);
 
-    return NextResponse.json({ ipfsHash: result.IpfsHash }, { status: 200 });
-
-  } catch (err) {
-    console.error("Upload Error →", err);
-    return NextResponse.json({ error: "서버 내부 오류" }, { status: 500 });
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json({ error: "업로드 실패" }, { status: 500 });
   }
 }
