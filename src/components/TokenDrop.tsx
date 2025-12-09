@@ -1,9 +1,20 @@
 "use client"
 
 import { useAccount, useWriteContract, useReadContract } from "wagmi"
-import { parseTokenAmount, formatTokenAmount, tokenContractAddress } from "@/lib/contracts"
+import { tokenContractAddress } from "@/lib/contracts"
 import tokenAbi from "@/lib/tokenAbi.json"
 import { useState } from "react"
+
+// parseTokenAmount 및 formatTokenAmount 직접 구현 (원본 내보내기 없음 오류 대응)
+function parseTokenAmount(amount: string): bigint {
+  // 18 소수점(ERC20 표준) 가정
+  return BigInt(amount) * 10n ** 18n
+}
+
+function formatTokenAmount(amount: bigint): string {
+  // 18 소수점(ERC20 표준) 가정
+  return (Number(amount) / 10 ** 18).toLocaleString("en-US")
+}
 
 const DROP_AMOUNT = "1000"
 
@@ -11,7 +22,7 @@ export function TokenDrop() {
   const { address } = useAccount()
   const [message, setMessage] = useState("")
 
-  // 🔧 수정된 useReadContract (타입 & enabled 옵션 포함)
+  // 🔧 FIXED: enabled 옵션은 여기에 있어야 함
   const { data: balance } = useReadContract({
     address: tokenContractAddress as `0x${string}`,
     abi: tokenAbi,
@@ -48,7 +59,6 @@ export function TokenDrop() {
 
       {message && <p className="text-blue-600 mb-2">{message}</p>}
       {error && <p className="text-red-600 text-sm">{error.message}</p>}
-
 
       <button
         onClick={handleDrop}

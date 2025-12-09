@@ -1,95 +1,91 @@
-import { parseUnits, formatUnits } from 'viem'
+import { readContract, writeContract, waitForTransactionReceipt } from "wagmi/actions";
+import { wagmiConfig } from "./wagmi";
+
 import {
-  writeContract,
-  waitForTransactionReceipt,
-  readContract,
-} from 'wagmi/actions'
+  nftContractAddress,
+  marketplaceContractAddress,
+  tokenContractAddress,
+} from "./constants";
 
-import { wagmiConfig } from './wagmi'
-import { nftContractAddress, marketplaceContractAddress, tokenContractAddress } from './constants'
-import nftAbi from './nftAbi.json'
-import marketplaceAbi from './marketplaceAbi.json'
-import tokenAbi from './tokenAbi.json'
+import nftAbi from "./nftAbi.json";
+import marketplaceAbi from "./marketplaceAbi.json";
+import tokenAbi from "./tokenAbi.json";
 
-// ----------- READ helpers -----------
+// ---------------- READ FUNCTIONS ----------------
 
 export function getTokenBalance(address: `0x${string}`) {
   return readContract(wagmiConfig, {
-    address: tokenContractAddress,
+    address: tokenContractAddress as `0x${string}`,
     abi: tokenAbi,
-    functionName: 'balanceOf',
+    functionName: "balanceOf",
     args: [address],
-  })
+  });
 }
 
 export function getNFTBalance(address: `0x${string}`) {
   return readContract(wagmiConfig, {
-    address: nftContractAddress,
+    address: nftContractAddress as `0x${string}`,
     abi: nftAbi,
-    functionName: 'balanceOf',
+    functionName: "balanceOf",
     args: [address],
-  })
+  });
 }
 
 export function getListing(tokenId: bigint) {
   return readContract(wagmiConfig, {
-    address: marketplaceContractAddress,
+    address: marketplaceContractAddress as `0x${string}`,
     abi: marketplaceAbi,
-    functionName: 'getListing',
+    functionName: "getListing",
     args: [tokenId],
-  })
+  });
 }
 
-// ----------- WRITE helpers -----------
+// ---------------- WRITE FUNCTIONS ----------------
 
 export async function mintNFT(to: `0x${string}`, metadataUrl: string) {
   const hash = await writeContract(wagmiConfig, {
-    address: nftContractAddress,
+    address: nftContractAddress as `0x${string}`,
     abi: nftAbi,
-    functionName: 'safeMint',
+    functionName: "safeMint",
     args: [to, metadataUrl],
-  })
-  return waitForTransactionReceipt(wagmiConfig, { hash })
+  });
+
+  return waitForTransactionReceipt(wagmiConfig, { hash });
 }
 
 export async function dropTokens(to: `0x${string}`, amount: bigint) {
   const hash = await writeContract(wagmiConfig, {
-    address: tokenContractAddress,
+    address: tokenContractAddress as `0x${string}`,
     abi: tokenAbi,
-    functionName: 'dropTokens',
+    functionName: "dropTokens",
     args: [to, amount],
-  })
-  return waitForTransactionReceipt(wagmiConfig, { hash })
+  });
+
+  return waitForTransactionReceipt(wagmiConfig, { hash });
 }
 
 export async function listNFT(tokenId: bigint, price: bigint) {
   const hash = await writeContract(wagmiConfig, {
-    address: marketplaceContractAddress,
+    address: marketplaceContractAddress as `0x${string}`,
     abi: marketplaceAbi,
-    functionName: 'listNFT',
+    functionName: "listNFT",
     args: [tokenId, price],
-  })
-  return waitForTransactionReceipt(wagmiConfig, { hash })
+  });
+
+  return waitForTransactionReceipt(wagmiConfig, { hash });
 }
 
 export async function buyNFT(tokenId: bigint) {
   const hash = await writeContract(wagmiConfig, {
-    address: marketplaceContractAddress,
+    address: marketplaceContractAddress as `0x${string}`,
     abi: marketplaceAbi,
-    functionName: 'buyNFT',
+    functionName: "buyNFT",
     args: [tokenId],
-  })
-  return waitForTransactionReceipt(wagmiConfig, { hash })
+  });
+
+  return waitForTransactionReceipt(wagmiConfig, { hash });
 }
 
-// ----------- Utility -----------
+// ---------------- UTIL ----------------
 
-export function parseTokenAmount(value: string, decimals = 18) {
-  return parseUnits(value, decimals)
-}
-
-export function formatTokenAmount(value: bigint, decimals = 18) {
-  return formatUnits(value, decimals)
-}
-export { tokenContractAddress }
-
+export { tokenContractAddress };
