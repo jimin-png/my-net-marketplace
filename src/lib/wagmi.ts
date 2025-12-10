@@ -1,26 +1,60 @@
-// src/lib/wagmi.ts (또는 해당 파일 이름)
+import { createConfig, http, fallback } from 'wagmi'
+import { sepolia } from 'wagmi/chains'
+import { injected } from 'wagmi/connectors'
+import { SEPOLIA_RPC_URLS } from './constants'
 
-import { createConfig, http } from "wagmi";
-import { sepolia } from "wagmi/chains";
-import { injected } from "@wagmi/connectors";
+// Sepolia 테스트넷 설정
+const chains = [sepolia] as const
 
-// 🚨 [필수]: Vercel 환경 변수에서 Infura RPC URL을 가져옵니다.
-const SEPOLIA_RPC_URL = process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL;
+// wagmi 설정 생성
+// WalletConnect Project ID가 설정된 경우에만 WalletConnect connector 추가
+const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
 
-if (!SEPOLIA_RPC_URL) {
-    console.warn("NEXT_PUBLIC_SEPOLIA_RPC_URL 환경 변수가 설정되지 않았습니다. 불안정한 공개 RPC를 사용합니다.");
+// 브라우저 환경에서만 MetaMask와 WalletConnect connector 추가 (서버 사이드 렌더링 방지)
+const isBrowser = typeof window !== 'undefined'
+
+// Connector를 동적으로 생성하는 함수
+function getConnectors() {
+  const connectors = [injected()]
+
+  // 브라우저 환경에서만 추가 connector 로드
+  if (isBrowser) {
+    try {
+      // MetaMask connector는 injected()에 포함되므로 별도로 추가하지 않음
+      // 필요시 동적으로 import할 수 있음
+
+      // WalletConnect Project ID가 유효한 경우에만 추가
+      if (walletConnectProjectId && walletConnectProjectId.trim() !== '') {
+        const { walletConnect } = require('wagmi/connectors')
+        connectors.push(
+          walletConnect({
+            projectId: walletConnectProjectId,
+          })
+        )
+      }
+    } catch (error) {
+      console.warn('Connector 로드 실패:', error)
+    }
+  }
+
+  return connectors
 }
 
+const connectors = getConnectors()
+
+// RPC 엔드포인트 설정 (타임아웃 및 재시도 포함)
+const sepoliaTransports = SEPOLIA_RPC_URLS.map((url) =>
+  http(url, {
+    timeout: 10000, // 10초 타임아웃
+    retryCount: 2, // 2번 재시도
+    retryDelay: 1000, // 1초 대기 후 재시도
+  })
+)
+
 export const wagmiConfig = createConfig({
-  chains: [sepolia],
-  ssr: false,
-  connectors: [
-    injected({
-      target: "metaMask",
-    }),
-  ],
+  chains,
+  connectors,
   transports: {
-    // 🚨 [수정]: Vercel에 등록된 Infura URL을 사용하도록 명시적으로 지정
-    [sepolia.id]: http(SEPOLIA_RPC_URL),
+    [sepolia.id]: fallback(sepoliaTransports), // 여러 RPC를 fallback으로 사용
   },
-});
+})
