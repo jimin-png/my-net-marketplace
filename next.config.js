@@ -1,9 +1,17 @@
-// next.config.js (수정 후 내용)
-
-/** @type {import('next').NextConfig} */ // JSDoc을 사용하여 타입 힌트는 유지할 수 있습니다.
+/** @type {import('next').NextConfig} */
 const nextConfig = {
-  // 여기에 프로젝트의 모든 설정 내용이 들어갑니다.
-  // 예시: output: 'standalone' 또는 images: { domains: ['...'] } 등
+  async headers() {
+    return [
+      {
+        source: "/api/(.*)",
+        headers: [
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          { key: "Access-Control-Allow-Methods", value: "GET,POST,OPTIONS" },
+          { key: "Access-Control-Allow-Headers", value: "Content-Type, Authorization" },
+        ],
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;
