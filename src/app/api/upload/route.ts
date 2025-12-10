@@ -1,45 +1,50 @@
-export const runtime = "nodejs";
+// src/app/api/upload/route.ts (수정된 코드 - API Key/Secret 사용)
 
+export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
-import FormData from "form-data";
+// FormData 라이브러리를 임포트하는 대신 표준 Web API의 FormData를 사용합니다.
 
 export async function POST(req: NextRequest) {
+  // 🚨 JWT 대신 Pinata API Key/Secret Key를 환경 변수에서 가져옵니다.
+  const PINATA_API_KEY = process.env.PINATA_API_KEY;
+  const PINATA_SECRET_API_KEY = process.env.PINATA_SECRET_API_KEY; // 👈 이름 일치 확인
+
+  if (!PINATA_API_KEY || !PINATA_SECRET_API_KEY) {
+      return NextResponse.json(
+          { error: "Pinata API Key/Secret Key 누락" },
+          { status: 500 }
+      );
+  }
+
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File;
 
-    if (!file) {
-      return NextResponse.json({ error: "파일 없음" }, { status: 400 });
-    }
+    // ... (파일 유효성 검사 및 데이터 구성 로직) ...
+    const pinataData = new FormData();
+    pinataData.append("file", file, file.name);
 
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const pinataJwt = process.env.PINATA_JWT;
-
-    if (!pinataJwt) {
-      return NextResponse.json({ error: "환경변수 PINATA_JWT 없음" }, { status: 500 });
-    }
-
-    // 🔥 Node 전용 FormData 사용
-    const data = new FormData();
-    data.append("file", buffer, {
-      filename: file.name,
-      contentType: file.type || "application/octet-stream",
-    });
-
+    // 🚨 API Key/Secret Header 사용
     const uploadRes = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
       method: "POST",
       headers: {
-        Authorization: pinataJwt, // Bearer 포함해서 저장했기 때문에 그대로 사용
-        ...data.getHeaders(), // 🔥 Node 환경에서는 헤더 직접 넣어야함
+        'pinata_api_key': PINATA_API_KEY,
+        'pinata_secret_api_key': PINATA_SECRET_API_KEY,
       },
-      body: data as any, // TS 오류 제거
+      body: pinataData,
     });
 
+    // ... (응답 처리 로직) ...
     const json = await uploadRes.json();
+
+    if (!uploadRes.ok) {
+        return NextResponse.json({ error: "Pinata 업로드 실패", detail: json.error || '알 수 없는 Pinata 오류' }, { status: uploadRes.status });
+    }
+
     return NextResponse.json(json);
 
-  } catch (err) {
+  } catch (err: any) {
     console.error("Server error:", err);
-    return NextResponse.json({ error: "Server error", detail: `${err}` }, { status: 500 });
+    return NextResponse.json({ error: "Server error", detail: err.message || `${err}` }, { status: 500 });
   }
 }
