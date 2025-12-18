@@ -2,64 +2,86 @@
 
 import { NextResponse, NextRequest } from 'next/server';
 
-const PINATA_JSON_UPLOAD_URL = "https://api.pinata.cloud/pinning/pinJSONToIPFS";
+const PINATA_JSON_UPLOAD_URL =
+  'https://api.pinata.cloud/pinning/pinJSONToIPFS';
 
-// 🚨 Vercel 환경 변수 이름을 API Key/Secret Key로 통일
 const PINATA_API_KEY = process.env.PINATA_API_KEY;
 const PINATA_SECRET_API_KEY = process.env.PINATA_SECRET_API_KEY;
 
-
 export async function POST(req: NextRequest) {
-  // 1. API 키 유효성 검사
+  // 1️⃣ 환경 변수 체크
   if (!PINATA_API_KEY || !PINATA_SECRET_API_KEY) {
     return NextResponse.json(
-      { error: "Pinata API 키가 서버 환경 변수에 설정되지 않았습니다." },
+      { error: 'Pinata API 키가 설정되지 않았습니다.' },
       { status: 500 }
     );
   }
 
   try {
-    const metadata = await req.json();
+    // 2️⃣ FormData 수신
+    const formData = await req.formData();
 
-    // 2. Pinata API 호출 (메타데이터 업로드)
+    const name = formData.get('name');
+    const description = formData.get('description');
+    const imageUrl = formData.get('imageUrl'); // 프론트에서 넣은 값
+
+    if (!name || !description || !imageUrl) {
+      return NextResponse.json(
+        { error: '필수 메타데이터가 누락되었습니다.' },
+        { status: 400 }
+      );
+    }
+
+    // 3️⃣ Pinata로 보낼 JSON 메타데이터 구성
+    const metadata = {
+      name,
+      description,
+      image: imageUrl,
+    };
+
+    // 4️⃣ Pinata API 호출
     const pinataResponse = await fetch(PINATA_JSON_UPLOAD_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        // Pinata 인증을 위한 헤더
-        'pinata_api_key': PINATA_API_KEY,
-        'pinata_secret_api_key': PINATA_SECRET_API_KEY,
+        pinata_api_key: PINATA_API_KEY,
+        pinata_secret_api_key: PINATA_SECRET_API_KEY,
       },
       body: JSON.stringify({
         pinataMetadata: {
-          name: metadata.name || "NFT Metadata"
+          name: String(name),
         },
         pinataContent: metadata,
       }),
     });
 
     if (!pinataResponse.ok) {
-      const errorText = await pinataResponse.text();
-      throw new Error(`Pinata 업로드 실패: ${pinataResponse.status} - ${errorText}`);
+      const text = await pinataResponse.text();
+      throw new Error(`Pinata 업로드 실패: ${text}`);
     }
 
-    const pinataJson = await pinataResponse.json();
+    const result = await pinataResponse.json();
 
-    // 3. 성공 시 CID 반환
+    // 5️⃣ 반드시 JSON 응답 반환
     return NextResponse.json({
-      cid: pinataJson.IpfsHash,
-      url: `ipfs://${pinataJson.IpfsHash}`
+      success: true,
+      cid: result.IpfsHash,
+      url: `ipfs://${result.IpfsHash}`,
     });
-
   } catch (error: any) {
-    console.error("메타데이터 업로드 중 서버 오류:", error.message);
+    console.error('uploadJson error:', error);
+
     return NextResponse.json(
-      { error: error.message || "메타데이터 업로드 실패" },
+      { error: error.message || '메타데이터 업로드 실패' },
       { status: 500 }
     );
   }
 }
 
+// GET 차단
 export async function GET() {
-    return NextResponse.json({ error: "Method Not Allowed" }, { status: 405 });
+  return NextResponse.json(
+    { error: 'Method Not Allowed' },
+    { status: 405 }
+  );
 }
