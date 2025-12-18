@@ -16,44 +16,61 @@ export default function CreateNFT() {
   const { writeContract, data: hash, error: writeError } = useWriteContract();
   const { isSuccess, isLoading } = useWaitForTransactionReceipt({ hash });
 
+  /**
+   * ✅ Pinata 업로드 (이미지는 브라우저 → Pinata 직행)
+   * ✅ 서버는 JSON 메타데이터만 처리
+   */
   async function uploadToPinata() {
     if (!file) throw new Error("이미지 파일 없음");
 
-    //-- 이미지 업로드
-    const form = new FormData();
-    form.append("file", file);
+    // ===== 1️⃣ 이미지 업로드 =====
+    const pinataJwt = process.env.NEXT_PUBLIC_PINATA_JWT;
+    if (!pinataJwt) throw new Error("NEXT_PUBLIC_PINATA_JWT 없음");
 
-    const res = await fetch("/api/upload", {
+    const imgForm = new FormData();
+    imgForm.append("file", file);
+
+    const imgRes = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
       method: "POST",
-      body: form,
+      headers: {
+        Authorization: `Bearer ${pinataJwt}`,
+      },
+      body: imgForm,
     });
 
-    const imageJson = await res.json();
+    const imgJson = await imgRes.json();
+    if (!imgJson.IpfsHash) {
+      console.error(imgJson);
+      throw new Error("이미지 업로드 실패");
+    }
 
-    if (!imageJson.cid) throw new Error("이미지 업로드 실패");
+    const imageCID = imgJson.IpfsHash;
+    const imageURI = `ipfs://${imageCID}`;
 
-    const gateway = process.env.NEXT_PUBLIC_PINATA_GATEWAY;
-    if (!gateway) throw new Error("❌ 환경변수 NEXT_PUBLIC_PINATA_GATEWAY 없음");
+    // ===== 2️⃣ 메타데이터 업로드 =====
+    const metadata = {
+      name,
+      description: desc,
+      image: imageURI,
+    };
 
-    const imageURL = `${gateway}/${imageJson.cid}`;
-
-    //-- 메타데이터 업로드
-    const metadata = { name, description: desc, image: imageURL };
-
-    const metaRes = await fetch("/api/uploadJson", { // ← 여기만 수정됨
+    const metaRes = await fetch("/api/uploadJson", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(metadata),
     });
 
     const metaJson = await metaRes.json();
-    if (!metaJson.cid) throw new Error("메타데이터 업로드 실패");
+    if (!metaJson.cid) {
+      console.error(metaJson);
+      throw new Error("메타데이터 업로드 실패");
+    }
 
     return metaJson.cid;
   }
 
   async function handleMint() {
-    if (!isConnected) return setStatus("⚠ 지갑 먼저 연결하세요.");
+    if (!isConnected) return setStatus("⚠ 지갑을 먼저 연결하세요.");
     if (!name.trim() || !file) return setStatus("⚠ NFT 정보 입력 필요.");
 
     try {
@@ -77,7 +94,9 @@ export default function CreateNFT() {
   return (
     <div className="bg-white p-6 rounded-lg shadow max-w-xl mx-auto">
       <h2 className="text-xl font-bold mb-4">NFT 등록</h2>
-      <p className="text-gray-600 mb-4">새로운 NFT를 생성하고 등록할 수 있습니다.</p>
+      <p className="text-gray-600 mb-4">
+        새로운 NFT를 생성하고 등록할 수 있습니다.
+      </p>
 
       <label className="font-semibold">NFT 이름</label>
       <input
@@ -96,6 +115,7 @@ export default function CreateNFT() {
       <label className="font-semibold">이미지</label>
       <input
         type="file"
+        accept="image/*"
         className="mb-4"
         onChange={(e) => setFile(e.target.files?.[0] || null)}
       />
@@ -110,7 +130,11 @@ export default function CreateNFT() {
 
       {status && <p className="mt-3 text-center">{status}</p>}
       {writeError && <p className="mt-3 text-red-500">{writeError.message}</p>}
-      {isSuccess && <p className="mt-3 text-green-500 text-center">🎉 NFT 민팅 완료!</p>}
+      {isSuccess && (
+        <p className="mt-3 text-green-500 text-center">
+          🎉 NFT 민팅 완료!
+        </p>
+      )}
     </div>
   );
 }
